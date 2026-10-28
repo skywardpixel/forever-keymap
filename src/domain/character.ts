@@ -46,16 +46,23 @@ export function clearSlot(character: Character, key: SlotKey): Character {
 }
 
 /** Moving onto an occupied slot swaps the two items. */
-export function moveItem(character: Character, from: SlotKey, to: SlotKey): Character {
-  if (from === to) return character;
+/**
+ * Puts an item in a slot the way the game does: whatever was there is picked
+ * up onto the cursor. `from` is the slot the item was dragged out of, if any.
+ */
+export function placeAndPickUp(
+  character: Character,
+  to: SlotKey,
+  item: SlotItem,
+  from?: SlotKey,
+): { character: Character; pickedUp?: SlotItem } {
+  if (from === to) return { character };
   const slots = { ...character.slots };
-  const a = slots[from];
-  const b = slots[to];
-  if (a) slots[to] = a;
-  else delete slots[to];
-  if (b) slots[from] = b;
-  else delete slots[from];
-  return { ...character, slots };
+  const previous = slots[to];
+  if (from) delete slots[from];
+  slots[to] = item;
+  const same = previous && previous.type === item.type && previous.id === item.id;
+  return { character: { ...character, slots }, pickedUp: same ? undefined : previous };
 }
 
 /**

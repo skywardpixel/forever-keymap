@@ -3,7 +3,7 @@ import { applyDiff, bind, bindingDiff, chordIndex, DEFAULT_BINDINGS, isChanged, 
 import { isBindable, longChord, makeChord, parseChord, shortChord } from "./chords";
 import { applyPreset, BINDING_PRESETS, isPresetActive, undoPreset } from "./presets";
 import { activePages, addonPagesInUse, barsNeedingAddon, isPaged, pageOf } from "./bars";
-import { createCharacter, moveItem, placeItem, setAddonPage, setBarPaging, setRace } from "./character";
+import { createCharacter, placeAndPickUp, placeItem, setAddonPage, setBarPaging, setRace } from "./character";
 import { decodeShare, encodeShare } from "./share";
 import { fromV1 } from "./storage";
 
@@ -88,13 +88,30 @@ describe("presets", () => {
 });
 
 describe("characters", () => {
-  it("swaps items when moving onto an occupied slot", () => {
-    let p = createCharacter("Warrior", "Orc");
-    p = placeItem(p, "MAIN:battle:0", { type: "ability", id: "Charge" });
-    p = placeItem(p, "MAIN:battle:1", { type: "ability", id: "Rend" });
-    p = moveItem(p, "MAIN:battle:0", "MAIN:battle:1");
-    expect(p.slots["MAIN:battle:0"]).toEqual({ type: "ability", id: "Rend" });
-    expect(p.slots["MAIN:battle:1"]).toEqual({ type: "ability", id: "Charge" });
+  const charge = { type: "ability", id: "Charge" } as const;
+  const rend = { type: "ability", id: "Rend" } as const;
+
+  it("picks up what was in a slot when another item lands on it", () => {
+    const p = placeItem(createCharacter("Warrior", "Orc"), "MAIN:battle:1", rend);
+    const { character, pickedUp } = placeAndPickUp(p, "MAIN:battle:1", charge);
+    expect(character.slots["MAIN:battle:1"]).toEqual(charge);
+    expect(pickedUp).toEqual(rend);
+  });
+
+  it("moving between slots empties the source and picks up the target's item", () => {
+    let p = placeItem(createCharacter("Warrior", "Orc"), "MAIN:battle:0", charge);
+    p = placeItem(p, "MAIN:battle:1", rend);
+    const { character, pickedUp } = placeAndPickUp(p, "MAIN:battle:1", charge, "MAIN:battle:0");
+    expect(character.slots["MAIN:battle:0"]).toBeUndefined();
+    expect(character.slots["MAIN:battle:1"]).toEqual(charge);
+    expect(pickedUp).toEqual(rend);
+  });
+
+  it("picks up nothing from an empty slot, the same item, or a drop onto itself", () => {
+    const p = placeItem(createCharacter("Warrior", "Orc"), "MAIN:battle:0", charge);
+    expect(placeAndPickUp(p, "MAIN:battle:5", rend).pickedUp).toBeUndefined();
+    expect(placeAndPickUp(p, "MAIN:battle:0", charge).pickedUp).toBeUndefined();
+    expect(placeAndPickUp(p, "MAIN:battle:0", charge, "MAIN:battle:0").character).toBe(p);
   });
 
   it("drops abilities the new race doesn't have on race change", () => {

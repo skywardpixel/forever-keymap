@@ -36,7 +36,10 @@ type Props = {
   flashTarget: string | null;
   onHoverTarget: (target: string | null) => void;
   onLockTarget: (target: string) => void;
-  onDropItem: (key: string, data: ReturnType<typeof readDrag>) => void;
+  onDropItem: (key: string, data: ReturnType<typeof readDrag>, at: { x: number; y: number }) => void;
+  /** An item is on the cursor (picked up from an overwritten slot). */
+  holding: boolean;
+  onPlaceHeld: (key: string) => void;
   onRemove: (key: string) => void;
   onTogglePaging: (bar: BarId, on: boolean) => void;
   onToggleAddonPage: (pageId: string, on: boolean) => void;
@@ -133,7 +136,7 @@ export function ActionBars(props: Props) {
         <p className="hint">
           {props.quickBind
             ? "Hover a slot and press a key, mouse button or wheel. A slot holds two keys; a third replaces the second. Esc or right-click clears the hovered slot. Esc with nothing hovered exits."
-            : "Drag abilities onto slots. Drag a slot off the bars to remove it. Bindings stay with the slot."}
+            : "Drag abilities onto slots. Dropping on a filled slot picks up what was there: click a slot to place it, or click elsewhere to drop it. Drag a slot off the bars to remove it. Bindings stay with the slot."}
         </p>
       )}
     </section>
@@ -204,9 +207,12 @@ function Slot(props: Props & { slot: string; target: string }) {
       onDrop={(e) => {
         e.preventDefault();
         markDropHandled();
-        props.onDropItem(key, readDrag(e));
+        props.onDropItem(key, readDrag(e), { x: e.clientX, y: e.clientY });
       }}
-      onClick={() => quickBind && props.onLockTarget(target)}
+      onClick={() => {
+        if (quickBind) props.onLockTarget(target);
+        else if (props.holding && !readOnly) props.onPlaceHeld(key);
+      }}
       onMouseEnter={() => {
         props.onHoverTarget(target);
         setHover(true);

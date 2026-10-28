@@ -3,13 +3,23 @@ import { activePages } from "../domain/bars";
 import { bind, chordsOf, clearTarget, removeChord, resetTarget, setChordAt, type BindResult, type Bindings } from "../domain/bindings";
 import { EXTRA_MOUSE_BUTTONS, NO_MODS, isBindable, longChord, makeChord, modsFromEvent, type Chord, type Modifiers } from "../domain/chords";
 import { applyPreset, undoPreset } from "../domain/presets";
-import { clearSlot, deleteMacro, moveItem, placeItem, setAddonPage, setBarPaging, upsertMacro, type Character } from "../domain/character";
+import {
+  clearSlot,
+  deleteMacro,
+  placeAndPickUp,
+  setAddonPage,
+  setBarPaging,
+  upsertMacro,
+  type Character,
+  type SlotItem,
+} from "../domain/character";
 import type { ClassData } from "../data/types";
 import { AbilityPanel } from "./AbilityPanel";
 import { ActionBars } from "./ActionBars";
 import { BindingsList, PresetsPanel } from "./BindingsPanel";
 import { KeyboardView } from "./KeyboardView";
-import { makeCatalog, targetName } from "./model";
+import { makeCatalog, resolveItem, targetName, type Catalog } from "./model";
+import { iconUrl } from "../data/classes";
 import { useHeldModifiers, useQuickBind } from "./useQuickBind";
 
 type Props = {
@@ -33,6 +43,8 @@ export function Editor({ character, keymap, data, readOnly, onChange, onKeymapCh
   const [flash, setFlash] = useState<string | null>(null);
   const [toggledLayer, setToggledLayer] = useState<Modifiers>(NO_MODS);
   const [heldLayer, setHeldLayer] = useState<Modifiers>(NO_MODS);
+  /** An ability picked up off a slot by overwriting it, following the mouse until placed or dropped. */
+  const [cursorItem, setCursorItem] = useState<{ item: SlotItem; x: number; y: number } | null>(null);
   /** A Key 1 / Key 2 cell in the bindings list waiting for a key. */
   const [capture, setCapture] = useState<{ target: string; index: number } | null>(null);
   const flashTimer = useRef<number>();
@@ -101,6 +113,34 @@ export function Editor({ character, keymap, data, readOnly, onChange, onKeymapCh
     onPlainClick: () => setCapture(null),
   });
 
+  // Like the game: clicking anywhere but a slot, or pressing Esc, drops what you're holding.
+  useEffect(() => {
+    if (!cursorItem) return;
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target instanceof Element && e.target.closest(".slot"))) setCursorItem(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCursorItem(null);
+    };
+    window.addEventListener("mousedown", onDown, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [cursorItem]);
+
+  useEffect(() => {
+    if (quickBind) setCursorItem(null);
+  }, [quickBind]);
+
+  /** Places an item and puts whatever it replaced on the cursor. */
+  const place = (key: string, item: SlotItem, at: { x: number; y: number }, from?: string) => {
+    const { character: next, pickedUp } = placeAndPickUp(character, key, item, from);
+    update(next);
+    setCursorItem(pickedUp ? { item: pickedUp, ...at } : null);
+  };
+
   useHeldModifiers(setHeldLayer);
   const held = heldLayer.alt || heldLayer.ctrl || heldLayer.shift;
   const layer = held ? heldLayer : toggledLayer;
@@ -121,7 +161,8 @@ export function Editor({ character, keymap, data, readOnly, onChange, onKeymapCh
   };
 
   return (
-    <div className={`editor ${quickBind ? "quickbind-on" : ""}`}>
+    <div className={`editor ${quickBind ? "quickbind-on" : ""} ${cursorItem ? "holding" : ""}`}>
+      {cursorItem && <HeldCursor catalog={catalog} item={cursorItem.item} start={cursorItem} />}
       <AbilityPanel
         data={data}
         character={character}
@@ -135,11 +176,15 @@ export function Editor({ character, keymap, data, readOnly, onChange, onKeymapCh
           {...barProps}
           page={page}
           onPage={setPage}
-          onDropItem={(key, d) => {
+          onDropItem={(key, d, at) => {
             if (!d || readOnly) return;
-            if (d.kind === "slot") update(moveItem(character, d.key, key));
-            else update(placeItem(character, key, { type: d.kind, id: d.id }));
+            if (d.kind === "slot") {
+              const item = character.slots[d.key];
+              if (item) place(key, item, at, d.key);
+            } else place(key, { type: d.kind, id: d.id }, at);
           }}
+          holding={!!cursorItem}
+          onPlaceHeld={(key) => cursorItem && place(key, cursorItem.item, cursorItem)}
           onRemove={(key) => update(clearSlot(character, key))}
           onTogglePaging={(bar, on) => update(setBarPaging(character, bar, on))}
           onToggleAddonPage={(pageId, on) => update(setAddonPage(character, pageId, on))}
@@ -212,6 +257,24 @@ export function Editor({ character, keymap, data, readOnly, onChange, onKeymapCh
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The picked-up ability's icon, following the mouse like the game's cursor. */
+function HeldCursor({ catalog, item, start }: { catalog: Catalog; item: SlotItem; start: { x: number; y: number } }) {
+  const [pos, setPos] = useState(start);
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => setPos({ x: e.clientX, y: e.clientY });
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, []);
+  const resolved = resolveItem(catalog, item);
+  if (!resolved) return null;
+  return (
+    <div className="held-cursor" style={{ left: pos.x, top: pos.y }} aria-live="polite">
+      <img src={iconUrl(resolved.icon)} alt="" />
+      <span className="sr-only">Holding {resolved.name}. Click a slot to place it, or click elsewhere to drop it.</span>
     </div>
   );
 }
