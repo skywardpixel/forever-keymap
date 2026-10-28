@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- A gold key cap with an "F", matching the header logo. -->
+  <defs>
+    <linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a3040"/>
+      <stop offset="1" stop-color="#161a22"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#b88a2a"/>
+  <rect x="4" y="4" width="56" height="50" rx="12" fill="#e9b949"/>
+  <rect x="9" y="8" width="46" height="40" rx="8" fill="url(#cap)"/>
+  <path d="M24 17h18v5H30v5h10v5H30v10h-6z" fill="#e9b949"/>
+</svg>
