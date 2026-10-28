@@ -251,17 +251,10 @@ export default function App() {
 
         <main>
           {showPicker ? (
-            narrow ? (
-              <div className="picker">
-                <h1>Forever Keymap</h1>
-                <p className="muted">Plan your WoW Forever action bars and keybindings. Open this site on a desktop browser to start.</p>
-              </div>
-            ) : (
-              <ClassPicker
-                onCreate={(c, r) => addCharacter(createCharacter(c, r))}
-                onCancel={active ? () => setPicking(false) : undefined}
-              />
-            )
+            <ClassPicker
+              onCreate={(c, r) => addCharacter(createCharacter(c, r))}
+              onCancel={active ? () => setPicking(false) : undefined}
+            />
           ) : shown && data && data.id === shown.classId ? (
             <Editor
               key={shown.id}
