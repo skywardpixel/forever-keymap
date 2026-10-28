@@ -1,4 +1,5 @@
 import { applyDiff, bindingDiff, type Bindings } from "./bindings";
+import type { BarPaging } from "./bars";
 import type { Macro, Character, SlotItem } from "./character";
 
 // Share links carry a character's bars and the sharer's keymap (see docs/adr/0001). The payload is
@@ -16,6 +17,10 @@ type PayloadV1 = {
   x: [string, string, string][];
   /** only the bindings that differ from WoW defaults */
   b: Bindings;
+  /** per-bar paging overrides; added later, so optional */
+  p?: BarPaging;
+  /** opted-in addon-only pages; added later, so optional */
+  a?: string[];
 };
 
 async function pipe(bytes: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
@@ -45,6 +50,8 @@ export async function encodeShare(character: Character, keymap: Bindings): Promi
     ),
     x: character.macros.map((c) => [c.id, c.name, c.icon]),
     b: bindingDiff(keymap),
+    ...(character.barPaging && { p: character.barPaging }),
+    ...(character.addonPages && { a: character.addonPages }),
   };
   const bytes = await pipe(new TextEncoder().encode(JSON.stringify(payload)), new CompressionStream("deflate-raw"));
   return `${VERSION}.${toBase64Url(bytes)}`;
@@ -63,7 +70,10 @@ export async function decodeShare(code: string): Promise<{ character: SharedChar
     Object.entries(p.s).map(([k, v]) => [k, typeof v === "string" ? { type: "ability", id: v } : { type: "macro", id: v[1] }]),
   );
   const macros: Macro[] = p.x.map(([id, name, icon]) => ({ id, name, icon }));
-  return { character: { name: p.n, classId: p.c, raceId: p.r, slots, macros }, keymap: applyDiff(p.b) };
+  const character: SharedCharacter = { name: p.n, classId: p.c, raceId: p.r, slots, macros };
+  if (p.p) character.barPaging = p.p;
+  if (p.a) character.addonPages = p.a;
+  return { character, keymap: applyDiff(p.b) };
 }
 
 export async function shareUrl(character: Character, keymap: Bindings): Promise<string> {

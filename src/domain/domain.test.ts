@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { applyDiff, bind, bindingDiff, chordIndex, DEFAULT_BINDINGS, isChanged, removeChord, resetTarget, setChordAt } from "./bindings";
 import { isBindable, longChord, makeChord, parseChord, shortChord } from "./chords";
 import { applyPreset, BINDING_PRESETS, isPresetActive, undoPreset } from "./presets";
-import { createCharacter, moveItem, placeItem, setRace } from "./character";
+import { activePages, addonPagesInUse, barsNeedingAddon, isPaged, pageOf } from "./bars";
+import { createCharacter, moveItem, placeItem, setAddonPage, setBarPaging, setRace } from "./character";
 import { decodeShare, encodeShare } from "./share";
 import { fromV1 } from "./storage";
 
@@ -168,5 +169,64 @@ describe("key 1 / key 2", () => {
 
   it("removing the primary promotes the secondary", () => {
     expect(removeChord(DEFAULT_BINDINGS, "MOVEFORWARD", "W").MOVEFORWARD).toEqual(["UP"]);
+  });
+});
+
+describe("bar paging", () => {
+  it("defaults to the default UI: Bar 1 only, and never for Shadowform", () => {
+    expect(isPaged("Warrior", undefined, "MAIN")).toBe(true);
+    expect(isPaged("Warrior", undefined, "BOTTOMLEFT")).toBe(false);
+    expect(isPaged("Priest", undefined, "MAIN")).toBe(false);
+    expect(isPaged("Mage", { MAIN: true }, "MAIN")).toBe(false); // nothing to page on
+    expect(barsNeedingAddon("Warrior", undefined)).toEqual([]);
+  });
+
+  it("flags any deviation from the default UI as needing an addon", () => {
+    let c = setBarPaging(createCharacter("Druid", "Tauren"), "BOTTOMLEFT", true);
+    expect(barsNeedingAddon(c.classId, c.barPaging)).toEqual(["BOTTOMLEFT"]);
+    c = setBarPaging(c, "MAIN", false);
+    expect(barsNeedingAddon(c.classId, c.barPaging)).toEqual(["MAIN", "BOTTOMLEFT"]);
+    expect(pageOf(c.classId, c.barPaging, "MAIN", "cat")).toBe("default");
+    expect(pageOf(c.classId, c.barPaging, "BOTTOMLEFT", "cat")).toBe("cat");
+  });
+
+  it("drops overrides that match the default UI", () => {
+    let c = setBarPaging(createCharacter("Priest", "Undead"), "MAIN", true);
+    expect(c.barPaging).toEqual({ MAIN: true });
+    c = setBarPaging(c, "MAIN", false);
+    expect(c.barPaging).toBeUndefined();
+  });
+
+  it("round-trips paging through a share code", async () => {
+    const c = setBarPaging(createCharacter("Priest", "Undead"), "MAIN", true);
+    const { character } = await decodeShare(await encodeShare(c, DEFAULT_BINDINGS));
+    expect(character.barPaging).toEqual({ MAIN: true });
+  });
+});
+
+describe("addon-only pages", () => {
+  it("keeps Moonkin off for Druids until they opt in", () => {
+    const ids = (c: { classId: string; addonPages?: string[] }) => activePages(c.classId, c.addonPages).map((p) => p.id);
+    let c = createCharacter("Druid", "Tauren");
+    expect(ids(c)).toEqual(["default", "bear", "cat", "prowl"]);
+    expect(addonPagesInUse(c.classId, c.barPaging, c.addonPages)).toEqual([]);
+    c = setAddonPage(c, "moonkin", true);
+    expect(ids(c)).toEqual(["default", "bear", "cat", "prowl", "moonkin"]);
+    expect(addonPagesInUse(c.classId, c.barPaging, c.addonPages).map((p) => p.id)).toEqual(["moonkin"]);
+    c = setAddonPage(c, "moonkin", false);
+    expect(c.addonPages).toBeUndefined();
+  });
+
+  it("gives Priests Shadowform as soon as a bar pages", () => {
+    let c = createCharacter("Priest", "Undead");
+    expect(addonPagesInUse(c.classId, c.barPaging, c.addonPages)).toEqual([]);
+    c = setBarPaging(c, "MAIN", true);
+    expect(addonPagesInUse(c.classId, c.barPaging, c.addonPages).map((p) => p.id)).toEqual(["shadowform"]);
+  });
+
+  it("round-trips opted-in pages through a share code", async () => {
+    const c = setAddonPage(createCharacter("Druid", "Tauren"), "moonkin", true);
+    const { character } = await decodeShare(await encodeShare(c, DEFAULT_BINDINGS));
+    expect(character.addonPages).toEqual(["moonkin"]);
   });
 });

@@ -3,7 +3,7 @@ import type { Ability, AbilityGroup, ClassData } from "../data/types";
 import type { Macro, Character } from "../domain/character";
 import { newId } from "../domain/character";
 import { availableToRace, iconUrl, isRacial } from "../data/classes";
-import { mainBarPages } from "../domain/bars";
+import { classPages } from "../domain/bars";
 import meta from "../data/meta.json";
 import { useTooltip } from "./Tooltip";
 import { readDrag, writeDrag } from "./drag";
@@ -51,7 +51,7 @@ export function AbilityPanel({ data, character, readOnly, onSaveMacro, onDeleteM
   const [sort, setSortState] = useState<Sort>(loadSort);
   /** A stance/form name (a Bar Page's ability) the abilities must require, or null for any. */
   const [form, setForm] = useState<string | null>(null);
-  const formPages = mainBarPages(data.id).filter((p) => p.ability);
+  const formPages = classPages(data.id).filter((p) => p.ability && data.abilities.some((a) => a.requires?.includes(p.ability!)));
   const setSort = (next: Sort) => {
     setSortState(next);
     try {

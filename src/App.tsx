@@ -242,7 +242,12 @@ export default function App() {
             <button onClick={closeShared}>Close</button>
           </div>
         )}
-        {narrow && shown && !showPicker && <div className="banner">Editing needs a desktop browser. This is a read-only view.</div>}
+        {narrow && (
+          <div className="banner warning" role="alert">
+            <b>This site only works on a computer.</b> Planning your bars needs a keyboard and mouse, so on this device you can
+            only look.
+          </div>
+        )}
 
         <main>
           {showPicker ? (

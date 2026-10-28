@@ -31,7 +31,10 @@ A single button position on an action bar; the thing a key is bound to.
 _Avoid_: Button, cell, hotkey
 
 **Bar Page**:
-An alternate set of slot contents for Bar 1 that the game swaps in for a stance, form, or stealth; it shares Bar 1's bindings.
+An alternate set of slot contents for a bar that swaps in for a stance, form, or stealth; it shares that bar's bindings. The default UI pages only Bar 1 (Warrior stances, Druid forms, Rogue Stealth); paging other bars, or for Shadowform or Moonkin Form, needs a bar addon.
+
+**Paged Bar**:
+A bar that swaps to a Bar Page when the character changes stance or form; all paged bars swap together.
 _Avoid_: Stance bar, form bar
 
 **Slot Item**:

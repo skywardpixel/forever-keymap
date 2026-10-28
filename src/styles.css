@@ -351,6 +351,11 @@ kbd {
   border-bottom: 1px solid var(--gold-line);
 }
 
+.banner.warning {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
 .banner.error {
   background: var(--danger-soft);
   border-color: var(--danger);
@@ -791,6 +796,35 @@ main {
 .mouse-picker .muted {
   margin-right: var(--s-1);
   color: var(--text);
+}
+
+.paging-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-3);
+}
+
+.addon-warning {
+  margin-bottom: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  font-size: var(--fs-sm);
+  background: var(--gold-soft);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--r-md);
+}
+
+.addon-warning b {
+  color: var(--gold);
+}
+
+.bar-page-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin-top: var(--s-1);
+  border-radius: 2px;
 }
 
 .bar {

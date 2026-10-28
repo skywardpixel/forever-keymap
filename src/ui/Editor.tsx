@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { mainBarPages } from "../domain/bars";
+import { activePages } from "../domain/bars";
 import { bind, chordsOf, clearTarget, removeChord, resetTarget, setChordAt, type BindResult, type Bindings } from "../domain/bindings";
 import { EXTRA_MOUSE_BUTTONS, NO_MODS, isBindable, longChord, makeChord, modsFromEvent, type Chord, type Modifiers } from "../domain/chords";
 import { applyPreset, undoPreset } from "../domain/presets";
-import { clearSlot, deleteMacro, moveItem, placeItem, upsertMacro, type Character } from "../domain/character";
+import { clearSlot, deleteMacro, moveItem, placeItem, setAddonPage, setBarPaging, upsertMacro, type Character } from "../domain/character";
 import type { ClassData } from "../data/types";
 import { AbilityPanel } from "./AbilityPanel";
 import { ActionBars } from "./ActionBars";
@@ -24,7 +24,7 @@ type Props = {
 };
 
 export function Editor({ character, keymap, data, readOnly, onChange, onKeymapChange, toast }: Props) {
-  const pages = mainBarPages(character.classId);
+  const pages = activePages(character.classId, character.addonPages);
   const [page, setPage] = useState(pages[0].id);
   const [quickBind, setQuickBind] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -141,6 +141,8 @@ export function Editor({ character, keymap, data, readOnly, onChange, onKeymapCh
             else update(placeItem(character, key, { type: d.kind, id: d.id }));
           }}
           onRemove={(key) => update(clearSlot(character, key))}
+          onTogglePaging={(bar, on) => update(setBarPaging(character, bar, on))}
+          onToggleAddonPage={(pageId, on) => update(setAddonPage(character, pageId, on))}
           actions={
             !readOnly && (
               <button

@@ -1,5 +1,19 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BARS, SLOTS_PER_BAR, mainBarPages, slotKey, slotTarget, type BarId } from "../domain/bars";
+import {
+  BARS,
+  SLOTS_PER_BAR,
+  activePages,
+  addonPagesInUse,
+  barsNeedingAddon,
+  canPage,
+  classPages,
+  isPaged,
+  optionalPages,
+  pageOf,
+  slotKey,
+  slotTarget,
+  type BarId,
+} from "../domain/bars";
 import { chordsOf, type Bindings } from "../domain/bindings";
 import { shortChord, longChord } from "../domain/chords";
 import type { Character } from "../domain/character";
@@ -24,6 +38,8 @@ type Props = {
   onLockTarget: (target: string) => void;
   onDropItem: (key: string, data: ReturnType<typeof readDrag>) => void;
   onRemove: (key: string) => void;
+  onTogglePaging: (bar: BarId, on: boolean) => void;
+  onToggleAddonPage: (pageId: string, on: boolean) => void;
   /** Controls shown at the end of the panel header (Quick Bind). */
   actions?: ReactNode;
   /** A row under the header (the extra mouse button picker). */
@@ -32,13 +48,17 @@ type Props = {
 
 export function ActionBars(props: Props) {
   const { character, catalog, page, onPage } = props;
-  const pages = mainBarPages(character.classId);
+  const { classId, barPaging, addonPages } = character;
+  const pages = activePages(classId, addonPages);
+  const anyPaged = BARS.some((b) => isPaged(classId, barPaging, b.id));
+  const addonBars = barsNeedingAddon(classId, barPaging);
+  const addonForms = addonPagesInUse(classId, barPaging, addonPages);
   return (
     <section className="bars panel">
       <div className="panel-head">
         <h2>Action bars</h2>
-        {pages.length > 1 && (
-          <div className="page-tabs" role="tablist" aria-label="Main bar page">
+        {anyPaged && (
+          <div className="page-tabs" role="tablist" aria-label="Stance or form">
             {pages.map((p) => {
               const icon = p.ability ? catalog.abilities.get(p.ability)?.icon : undefined;
               return (
@@ -53,8 +73,61 @@ export function ActionBars(props: Props) {
         {props.actions && <div className="panel-actions">{props.actions}</div>}
       </div>
       {props.notice}
+      {canPage(classId) && (
+        <div className="paging-row">
+          <span className="chips-label">Swap with {pages.filter((p) => p.ability).map((p) => p.ability).join(" / ")}</span>
+          <div className="chips" role="group" aria-label="Bars that swap pages">
+            {BARS.map((b) => {
+              const on = isPaged(classId, barPaging, b.id);
+              return (
+                <button
+                  key={b.id}
+                  className={on ? "chip on" : "chip"}
+                  aria-pressed={on}
+                  disabled={props.readOnly}
+                  onClick={() => props.onTogglePaging(b.id, !on)}
+                >
+                  {b.name}
+                </button>
+              );
+            })}
+          </div>
+          {optionalPages(classId).map((p) => {
+            const on = !!addonPages?.includes(p.id);
+            return (
+              <button
+                key={p.id}
+                className={on ? "chip on" : "chip"}
+                aria-pressed={on}
+                disabled={props.readOnly}
+                onClick={() => props.onToggleAddonPage(p.id, !on)}
+                title={`Add a ${p.name} page (needs a bar addon)`}
+              >
+                + {p.name} page
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {(addonBars.length > 0 || addonForms.length > 0) && (
+        <div className="addon-warning" role="note">
+          <b>Needs a bar addon.</b>{" "}
+          {addonForms.length > 0 && `The default WoW UI never swaps bars for ${addonForms.map((p) => p.name).join(" or ")}. `}
+          {addonBars.length > 0 &&
+            !classPages(classId).every((p) => !p.ability || p.addonOnly) &&
+            "The default WoW UI always swaps Bar 1, and only Bar 1. "}
+          To set up these bars in game, use an action bar addon such as Bartender4 or Dominos.
+        </div>
+      )}
       {BARS.map((bar, i) => (
-        <BarRow key={bar.id} bar={bar.id} name={bar.name} side={!!bar.side && !BARS[i - 1]?.side} pageId={bar.id === "MAIN" ? page : "default"} {...props} />
+        <BarRow
+          key={bar.id}
+          bar={bar.id}
+          name={bar.name}
+          side={!!bar.side && !BARS[i - 1]?.side}
+          pageId={pageOf(classId, barPaging, bar.id, page)}
+          {...props}
+        />
       ))}
       {!props.readOnly && (
         <p className="hint">
@@ -68,10 +141,15 @@ export function ActionBars(props: Props) {
 }
 
 function BarRow(props: Props & { bar: BarId; name: string; pageId: string; side: boolean }) {
-  const { bar, name, pageId, side } = props;
+  const { bar, name, pageId, side, character, catalog } = props;
+  const page = classPages(character.classId).find((p) => p.id === pageId);
+  const pageIcon = page?.ability ? catalog.abilities.get(page.ability)?.icon : undefined;
   return (
     <div className={side ? "bar side-start" : "bar"}>
-      <div className="bar-name">{name}</div>
+      <div className="bar-name" title={page && pageId !== "default" ? `${name}: ${page.name} page` : name}>
+        {name}
+        {pageIcon && <img className="bar-page-icon" src={iconUrl(pageIcon)} alt={page!.name} />}
+      </div>
       <div className="bar-slots">
         {Array.from({ length: SLOTS_PER_BAR }, (_, i) => (
           <Slot key={i} {...props} slot={slotKey(bar, pageId, i)} target={slotTarget(bar, i)} />

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { slotFromTarget, slotKey } from "../domain/bars";
+import { pageOf, slotFromTarget, slotKey } from "../domain/bars";
 import { chordIndex, isChanged, type Bindings } from "../domain/bindings";
 import { isBindable, longChord, makeChord, type Modifiers } from "../domain/chords";
 import type { Character } from "../domain/character";
@@ -109,7 +109,7 @@ function BoundKey({
   const bindable = isBindable(chord);
   const target = index.get(chord);
   const slot = target ? slotFromTarget(target) : null;
-  const item = slot ? resolveItem(catalog, character.slots[slotKey(slot.bar, slot.bar === "MAIN" ? page : "default", slot.index)]) : undefined;
+  const item = slot ? resolveItem(catalog, character.slots[slotKey(slot.bar, pageOf(character.classId, character.barPaging, slot.bar, page), slot.index)]) : undefined;
   const changed = bindable && isChanged(index, chord);
   const kind = !target ? "free" : slot ? "action" : "game";
 

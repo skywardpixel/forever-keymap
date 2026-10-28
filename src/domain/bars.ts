@@ -16,8 +16,11 @@ export const BARS: Bar[] = [
 
 export const SLOTS_PER_BAR = 12;
 
-/** A Bar Page; `ability` names the stance/form whose icon represents it. */
-export type BarPage = { id: string; name: string; ability?: string };
+/**
+ * A Bar Page; `ability` names the stance/form that swaps it in. `addonOnly`
+ * pages exist only with a bar addon (the default UI never swaps for them).
+ */
+export type BarPage = { id: string; name: string; ability?: string; addonOnly?: boolean };
 
 const DEFAULT_PAGE: BarPage = { id: "default", name: "Default" };
 
@@ -32,20 +35,70 @@ const CLASS_PAGES: Record<string, BarPage[]> = {
     { id: "bear", name: "Bear Form", ability: "Bear Form" },
     { id: "cat", name: "Cat Form", ability: "Cat Form" },
     { id: "prowl", name: "Cat Form (Prowl)", ability: "Prowl" },
+    { id: "moonkin", name: "Moonkin Form", ability: "Moonkin Form", addonOnly: true },
   ],
   Rogue: [
     { id: "default", name: "Normal" },
     { id: "stealth", name: "Stealth", ability: "Stealth" },
   ],
+  Priest: [
+    { id: "default", name: "Normal" },
+    { id: "shadowform", name: "Shadowform", ability: "Shadowform", addonOnly: true },
+  ],
 };
 
-/** Pages of the Main bar for a class; every other bar has a single default page. */
-export function mainBarPages(classId: string): BarPage[] {
+/** Every page a class could have, including addon-only ones. */
+export function classPages(classId: string): BarPage[] {
   return CLASS_PAGES[classId] ?? [DEFAULT_PAGE];
 }
 
-export function pagesFor(classId: string, bar: BarId): BarPage[] {
-  return bar === "MAIN" ? mainBarPages(classId) : [DEFAULT_PAGE];
+/** The default UI pages only Bar 1, and only for stances/forms it supports. */
+export function defaultUiPages(classId: string, bar: BarId): boolean {
+  return bar === "MAIN" && classPages(classId).some((p) => p.ability && !p.addonOnly);
+}
+
+/**
+ * Addon-only pages that must be switched on per character. A class whose only
+ * pages are addon-only (Priest: Shadowform) gets them whenever a bar is paged;
+ * a class that already pages in the default UI (Druid: Moonkin) opts in.
+ */
+export function optionalPages(classId: string): BarPage[] {
+  const pages = classPages(classId);
+  return pages.some((p) => p.ability && !p.addonOnly) ? pages.filter((p) => p.addonOnly) : [];
+}
+
+/** The pages paged bars actually cycle through for this character. */
+export function activePages(classId: string, addonPages: string[] | undefined): BarPage[] {
+  const optional = new Set(optionalPages(classId).map((p) => p.id));
+  return classPages(classId).filter((p) => !optional.has(p.id) || !!addonPages?.includes(p.id));
+}
+
+/** Whether the class has any stance/form to page on. */
+export function canPage(classId: string): boolean {
+  return classPages(classId).length > 1;
+}
+
+/** Overrides of the default UI's paging, per bar. Absent means "as the default UI". */
+export type BarPaging = Partial<Record<BarId, boolean>>;
+
+export function isPaged(classId: string, paging: BarPaging | undefined, bar: BarId): boolean {
+  return canPage(classId) && (paging?.[bar] ?? defaultUiPages(classId, bar));
+}
+
+/** The page a bar shows while the character is in `viewPage` (unpaged bars stay on default). */
+export function pageOf(classId: string, paging: BarPaging | undefined, bar: BarId, viewPage: string): string {
+  return isPaged(classId, paging, bar) ? viewPage : "default";
+}
+
+/** Addon-only pages in use: Shadowform once any bar pages, Moonkin once opted in. */
+export function addonPagesInUse(classId: string, paging: BarPaging | undefined, addonPages: string[] | undefined): BarPage[] {
+  if (!BARS.some((b) => isPaged(classId, paging, b.id))) return [];
+  return activePages(classId, addonPages).filter((p) => p.addonOnly);
+}
+
+/** Bars whose paging the default UI can't do, so the layout needs a bar addon. */
+export function barsNeedingAddon(classId: string, paging: BarPaging | undefined): BarId[] {
+  return BARS.filter((b) => isPaged(classId, paging, b.id) !== defaultUiPages(classId, b.id)).map((b) => b.id);
 }
 
 /** Where a slot item lives: bar + page + 0-based index. */
