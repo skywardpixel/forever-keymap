@@ -8,7 +8,10 @@ npm run dev      # http://localhost:5173
 npm test
 npm run build    # static site in dist/
 npm run data     # refresh ability data + icons from talentsforever.com
+npm run deploy   # build and deploy to Cloudflare (needs `wrangler login`)
 ```
+
+Live at https://forever-keymap.kyleyan.workers.dev, served as static assets on Cloudflare Workers (`wrangler.jsonc`).
 
 - Vocabulary: [GLOSSARY.md](GLOSSARY.md)
 - Decisions: [docs/adr](docs/adr)

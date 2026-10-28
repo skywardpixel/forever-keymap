@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Static site served from Workers static assets (the current Cloudflare Pages).
+  "name": "forever-keymap",
+  "compatibility_date": "2026-10-28",
+  "assets": {
+    "directory": "./dist",
+    // Single page app: share links use the URL hash, so every path serves index.html.
+    "not_found_handling": "single-page-application"
+  }
+}
