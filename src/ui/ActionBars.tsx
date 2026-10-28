@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BARS, SLOTS_PER_BAR, mainBarPages, slotKey, slotTarget, type BarId } from "../domain/bars";
 import { chordsOf, type Bindings } from "../domain/bindings";
 import { shortChord, longChord } from "../domain/chords";
-import type { Profile } from "../domain/profile";
+import type { Character } from "../domain/character";
 import { iconUrl } from "../data/classes";
 import { resolveItem, targetName, type Catalog } from "./model";
 import { AbilityTooltip } from "./AbilityPanel";
@@ -10,7 +10,7 @@ import { useTooltip } from "./Tooltip";
 import { markDropHandled, readDrag, wasDropHandled, writeDrag } from "./drag";
 
 type Props = {
-  profile: Profile;
+  character: Character;
   catalog: Catalog;
   bindings: Bindings;
   page: string;
@@ -31,8 +31,8 @@ type Props = {
 };
 
 export function ActionBars(props: Props) {
-  const { profile, catalog, page, onPage } = props;
-  const pages = mainBarPages(profile.classId);
+  const { character, catalog, page, onPage } = props;
+  const pages = mainBarPages(character.classId);
   return (
     <section className="bars panel">
       <div className="panel-head">
@@ -82,11 +82,11 @@ function BarRow(props: Props & { bar: BarId; name: string; pageId: string; side:
 }
 
 function Slot(props: Props & { slot: string; target: string }) {
-  const { slot: key, target, profile, catalog, bindings, readOnly, quickBind } = props;
+  const { slot: key, target, character, catalog, bindings, readOnly, quickBind } = props;
   const tip = useTooltip();
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState(false);
-  const item = resolveItem(catalog, profile.slots[key]);
+  const item = resolveItem(catalog, character.slots[key]);
   const chords = chordsOf(bindings, target);
 
   // Re-show while hovered so the tooltip tracks bindings made in Quick Bind.

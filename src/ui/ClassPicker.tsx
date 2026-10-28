@@ -22,7 +22,7 @@ export function ClassPicker({ onCreate, onCancel }: Props) {
       <p className="muted">
         {classId
           ? "Racials depend on race. You can change it later."
-          : "Each profile plans the action bars and keybindings for one class."}
+          : "Each character has its own action bars. Keybindings are shared by all your characters, like in WoW."}
       </p>
       {!classId && (
         <div className="class-grid">

@@ -2,14 +2,14 @@ import { useMemo } from "react";
 import { slotFromTarget, slotKey } from "../domain/bars";
 import { chordIndex, isChanged, type Bindings } from "../domain/bindings";
 import { isBindable, longChord, makeChord, type Modifiers } from "../domain/chords";
-import type { Profile } from "../domain/profile";
+import type { Character } from "../domain/character";
 import { iconUrl } from "../data/classes";
 import { KEYBOARD, KEYBOARD_HEIGHT, KEYBOARD_WIDTH, MOUSE_INPUTS } from "./keyboardLayout";
 import { resolveItem, targetName, targetShort, type Catalog } from "./model";
 import { useTooltip } from "./Tooltip";
 
 type Props = {
-  profile: Profile;
+  character: Character;
   catalog: Catalog;
   bindings: Bindings;
   page: string;
@@ -32,6 +32,9 @@ export function KeyboardView(props: Props) {
     <section className="keyboard panel">
       <div className="panel-head">
         <h2>Keyboard</h2>
+        <span className="scope-tag" title="Keybindings are account-wide: every character uses the same keymap, as in WoW.">
+          All characters
+        </span>
         <div className="layer-toggles" role="group" aria-label="Modifier layer">
           {(["shift", "ctrl", "alt"] as const).map((m) => (
             <button key={m} className={layer[m] ? "chip on" : "chip"} onClick={() => onToggleMod(m)} aria-pressed={layer[m]}>
@@ -94,7 +97,7 @@ function BoundKey({
   label,
   style,
   index,
-  profile,
+  character,
   catalog,
   page,
   layer,
@@ -106,7 +109,7 @@ function BoundKey({
   const bindable = isBindable(chord);
   const target = index.get(chord);
   const slot = target ? slotFromTarget(target) : null;
-  const item = slot ? resolveItem(catalog, profile.slots[slotKey(slot.bar, slot.bar === "MAIN" ? page : "default", slot.index)]) : undefined;
+  const item = slot ? resolveItem(catalog, character.slots[slotKey(slot.bar, slot.bar === "MAIN" ? page : "default", slot.index)]) : undefined;
   const changed = bindable && isChanged(index, chord);
   const kind = !target ? "free" : slot ? "action" : "game";
 

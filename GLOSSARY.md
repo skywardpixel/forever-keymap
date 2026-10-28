@@ -6,15 +6,19 @@ A planner for laying out WoW Forever action bars and keybindings before launch, 
 
 ### Planning
 
-**Profile**:
-A named, saved plan for one class: its slot contents, macros, and bindings.
-_Avoid_: Loadout, setup, config, preset
+**Character**:
+A named plan for one class and race: its slot contents and macros. Each character has its own action bars but uses the account's keymap.
+_Avoid_: Profile, loadout, setup
+
+**Keymap**:
+The account-wide set of bindings, shared by every character, as in WoW.
+_Avoid_: Profile, keybind set, binding profile
 
 **Class**:
-The WoW class a profile is for; it determines which abilities are available.
+The WoW class a character is; it determines which abilities are available.
 
 **Race**:
-The playable race a profile is for, restricted to races that can play its class; it determines which racials are available. Skyborne counts as two races, one per faction.
+The playable race a character is, restricted to races that can play its class; it determines which racials are available. Skyborne counts as two races, one per faction.
 
 ### Bars and slots
 
@@ -39,7 +43,7 @@ A non-passive class spell, talent-granted spell, or racial that can be placed in
 _Avoid_: Spell, skill
 
 **Racial**:
-An ability granted by the profile's race, either race-wide or specific to the race and class combination.
+An ability granted by the character's race, either race-wide or specific to the race and class combination (e.g. Priest's Starshards).
 
 **Macro**:
 A player-made slot item with a name and an icon, standing in for an in-game macro (and through it, consumables, mounts, or anything not in the ability data). Its script isn't modelled.
@@ -64,7 +68,7 @@ A game command that isn't an action slot (movement, targeting, opening panels, c
 _Avoid_: System bind, UI bind
 
 **Default Binding**:
-The chord WoW assigns to an action slot or game binding out of the box; every new profile starts with all of them.
+The chord WoW assigns to an action slot or game binding out of the box; a fresh keymap starts with all of them.
 
 **Binding Preset**:
 A named, one-click set of binding changes for a common customization, such as moving strafe to A/D.

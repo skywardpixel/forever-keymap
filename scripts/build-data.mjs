@@ -84,6 +84,13 @@ function buildClass(data) {
     for (const t of tree.talents) talentInfo.set(t.name, { tree: tree.name, passive: !!t.passive });
   }
 
+  // Race-specific class spells (e.g. Priest's Starshards) live in the spellbook tabs;
+  // tag them with the races that get them instead of listing them twice.
+  const classRacialRaces = new Map();
+  for (const [race, spells] of Object.entries(data.class_racials?.races ?? {})) {
+    for (const [name] of spells) classRacialRaces.set(name, [...(classRacialRaces.get(name) ?? []), race]);
+  }
+
   const abilities = [];
 
   // Level the ability is first learned at (rank 1), from the rank table or the tooltip.
@@ -118,6 +125,7 @@ function buildClass(data) {
       lines: tooltipLines(desc),
       desc: desc?.d ?? "",
       requires: requirements(desc),
+      races: classRacialRaces.get(name),
       trainer: desc?.nt ? false : undefined,
     });
   };
@@ -157,7 +165,6 @@ function buildClass(data) {
         });
       };
       entry.abilities.forEach(add);
-      (data.class_racials?.races?.[entry.race] ?? []).forEach(add);
       races.push({ id: entry.race, name: entry.race, faction, icon: entry.icon, racials: racialIds });
     }
   }

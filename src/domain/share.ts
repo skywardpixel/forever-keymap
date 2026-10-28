@@ -1,7 +1,7 @@
 import { applyDiff, bindingDiff, type Bindings } from "./bindings";
-import type { Macro, Profile, SlotItem } from "./profile";
+import type { Macro, Character, SlotItem } from "./character";
 
-// Share links carry the whole profile (see docs/adr/0001). The payload is
+// Share links carry a character's bars and the sharer's keymap (see docs/adr/0001). The payload is
 // "<version>.<base64url(deflate-raw(json))>"; every past version must keep decoding.
 
 const VERSION = 1;
@@ -34,25 +34,26 @@ function fromBase64Url(text: string): Uint8Array {
   return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 }
 
-export async function encodeProfile(profile: Profile): Promise<string> {
+/** A share link carries one character's bars plus the sharer's account-wide keymap. */
+export async function encodeShare(character: Character, keymap: Bindings): Promise<string> {
   const payload: PayloadV1 = {
-    n: profile.name,
-    c: profile.classId,
-    r: profile.raceId,
+    n: character.name,
+    c: character.classId,
+    r: character.raceId,
     s: Object.fromEntries(
-      Object.entries(profile.slots).map(([k, item]) => [k, item.type === "ability" ? item.id : ["c", item.id]]),
+      Object.entries(character.slots).map(([k, item]) => [k, item.type === "ability" ? item.id : ["c", item.id]]),
     ),
-    x: profile.macros.map((c) => [c.id, c.name, c.icon]),
-    b: bindingDiff(profile.bindings),
+    x: character.macros.map((c) => [c.id, c.name, c.icon]),
+    b: bindingDiff(keymap),
   };
   const bytes = await pipe(new TextEncoder().encode(JSON.stringify(payload)), new CompressionStream("deflate-raw"));
   return `${VERSION}.${toBase64Url(bytes)}`;
 }
 
-/** A shared profile, not yet saved (it gets a fresh id when copied). */
-export type SharedProfile = Omit<Profile, "id" | "updatedAt">;
+/** A shared character, not yet saved (it gets a fresh id when copied). */
+export type SharedCharacter = Omit<Character, "id" | "updatedAt">;
 
-export async function decodeProfile(code: string): Promise<SharedProfile> {
+export async function decodeShare(code: string): Promise<{ character: SharedCharacter; keymap: Bindings }> {
   const dot = code.indexOf(".");
   const version = Number(code.slice(0, dot));
   if (version !== 1) throw new Error(`Unsupported share link version ${code.slice(0, dot)}`);
@@ -62,12 +63,12 @@ export async function decodeProfile(code: string): Promise<SharedProfile> {
     Object.entries(p.s).map(([k, v]) => [k, typeof v === "string" ? { type: "ability", id: v } : { type: "macro", id: v[1] }]),
   );
   const macros: Macro[] = p.x.map(([id, name, icon]) => ({ id, name, icon }));
-  return { name: p.n, classId: p.c, raceId: p.r, slots, macros, bindings: applyDiff(p.b) };
+  return { character: { name: p.n, classId: p.c, raceId: p.r, slots, macros }, keymap: applyDiff(p.b) };
 }
 
-export async function shareUrl(profile: Profile): Promise<string> {
+export async function shareUrl(character: Character, keymap: Bindings): Promise<string> {
   const { origin, pathname } = window.location;
-  return `${origin}${pathname}#share=${await encodeProfile(profile)}`;
+  return `${origin}${pathname}#share=${await encodeShare(character, keymap)}`;
 }
 
 export function shareCodeFromHash(hash: string): string | null {

@@ -1,4 +1,4 @@
-import type { ClassData } from "./types";
+import type { Ability, ClassData } from "./types";
 
 export const CLASS_IDS = ["Warrior", "Paladin", "Hunter", "Rogue", "Priest", "Shaman", "Mage", "Warlock", "Druid"];
 
@@ -27,6 +27,17 @@ export function loadClass(classId: string): Promise<ClassData> {
     cache.set(classId, loader());
   }
   return cache.get(classId)!;
+}
+
+/** Whether a character of this race has the ability (racials and race-specific class spells). */
+export function availableToRace(ability: Ability, raceId: string): boolean {
+  if (ability.group === "racial") return ability.race === raceId;
+  return !ability.races || ability.races.includes(raceId);
+}
+
+/** Racials and race-specific class spells both count as racial for display and filtering. */
+export function isRacial(ability: Ability): boolean {
+  return ability.group === "racial" || !!ability.races;
 }
 
 export function iconUrl(icon: string): string {

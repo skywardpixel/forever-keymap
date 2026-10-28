@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { applyDiff, bind, bindingDiff, chordIndex, DEFAULT_BINDINGS, isChanged, removeChord, resetTarget, setChordAt } from "./bindings";
 import { isBindable, longChord, makeChord, parseChord, shortChord } from "./chords";
 import { applyPreset, BINDING_PRESETS, isPresetActive, undoPreset } from "./presets";
-import { createProfile, moveItem, placeItem, setRace } from "./profile";
-import { decodeProfile, encodeProfile } from "./share";
+import { createCharacter, moveItem, placeItem, setRace } from "./character";
+import { decodeShare, encodeShare } from "./share";
+import { fromV1 } from "./storage";
 
 const preset = (id: string) => BINDING_PRESETS.find((p) => p.id === id)!;
 
@@ -85,9 +86,9 @@ describe("presets", () => {
   });
 });
 
-describe("profiles", () => {
+describe("characters", () => {
   it("swaps items when moving onto an occupied slot", () => {
-    let p = createProfile("Warrior", "Orc");
+    let p = createCharacter("Warrior", "Orc");
     p = placeItem(p, "MAIN:battle:0", { type: "ability", id: "Charge" });
     p = placeItem(p, "MAIN:battle:1", { type: "ability", id: "Rend" });
     p = moveItem(p, "MAIN:battle:0", "MAIN:battle:1");
@@ -95,31 +96,49 @@ describe("profiles", () => {
     expect(p.slots["MAIN:battle:1"]).toEqual({ type: "ability", id: "Charge" });
   });
 
-  it("drops old racials on race change", () => {
-    let p = createProfile("Warrior", "Orc");
-    p = placeItem(p, "MAIN:battle:0", { type: "ability", id: "racial:Orc:Blood Fury" });
-    p = placeItem(p, "MAIN:battle:1", { type: "ability", id: "Charge" });
-    p = setRace(p, "Tauren");
-    expect(Object.keys(p.slots)).toEqual(["MAIN:battle:1"]);
+  it("drops abilities the new race doesn't have on race change", () => {
+    let p = createCharacter("Priest", "Night Elf");
+    p = placeItem(p, "MAIN:default:0", { type: "ability", id: "racial:Night Elf:Shadowmeld" });
+    p = placeItem(p, "MAIN:default:1", { type: "ability", id: "Starshards" });
+    p = placeItem(p, "MAIN:default:2", { type: "ability", id: "Smite" });
+    const nightElfOnly = new Set(["racial:Night Elf:Shadowmeld", "Starshards"]);
+    p = setRace(p, "Human", (id) => !nightElfOnly.has(id));
+    expect(Object.keys(p.slots)).toEqual(["MAIN:default:2"]);
   });
 
   it("round-trips through a share code", async () => {
-    let p = createProfile("Druid", "Tauren", "Feral PvP");
+    let p = createCharacter("Druid", "Tauren", "Feral PvP");
     p = placeItem(p, "MAIN:cat:3", { type: "ability", id: "Shred" });
     p = { ...p, macros: [{ id: "c1", name: "Potion", icon: "inv_potion_54" }] };
     p = placeItem(p, "RIGHT:default:0", { type: "macro", id: "c1" });
-    p = { ...p, bindings: applyPreset(p.bindings, preset("ad-strafe")) };
-    const code = await encodeProfile(p);
+    const keymap = applyPreset(DEFAULT_BINDINGS, preset("ad-strafe"));
+    const code = await encodeShare(p, keymap);
     expect(code.startsWith("1.")).toBe(true);
-    const back = await decodeProfile(code);
+    const back = await decodeShare(code);
     expect(back).toEqual({
-      name: p.name,
-      classId: p.classId,
-      raceId: p.raceId,
-      slots: p.slots,
-      macros: p.macros,
-      bindings: p.bindings,
+      character: { name: p.name, classId: p.classId, raceId: p.raceId, slots: p.slots, macros: p.macros },
+      keymap,
     });
+  });
+});
+
+describe("storage", () => {
+  it("moves v1 per-profile bindings into one account keymap, newest wins", () => {
+    const older = { ...createCharacter("Warrior", "Orc"), updatedAt: 1, bindings: DEFAULT_BINDINGS };
+    const newer = {
+      ...createCharacter("Druid", "Tauren"),
+      updatedAt: 2,
+      bindings: applyPreset(DEFAULT_BINDINGS, preset("ad-strafe")),
+      macros: undefined, // v1 saves from before the rename had only customItems
+      customItems: [{ id: "m1", name: "Potion", icon: "inv_potion_54" }],
+      slots: { "MAIN:default:0": { type: "custom", id: "m1" } },
+    };
+    const saved = fromV1({ profiles: [older, newer] as never, activeId: older.id });
+    expect(saved.keymap).toEqual(newer.bindings);
+    expect(saved.activeId).toBe(older.id);
+    expect(saved.characters.map((c) => "bindings" in c)).toEqual([false, false]);
+    expect(saved.characters[1].macros).toEqual(newer.customItems);
+    expect(saved.characters[1].slots["MAIN:default:0"]).toEqual({ type: "macro", id: "m1" });
   });
 });
 

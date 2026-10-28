@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import type { Ability, AbilityGroup, ClassData } from "../data/types";
-import type { Macro, Profile } from "../domain/profile";
-import { newId } from "../domain/profile";
-import { iconUrl } from "../data/classes";
+import type { Macro, Character } from "../domain/character";
+import { newId } from "../domain/character";
+import { availableToRace, iconUrl, isRacial } from "../data/classes";
 import { mainBarPages } from "../domain/bars";
 import meta from "../data/meta.json";
 import { useTooltip } from "./Tooltip";
@@ -38,14 +38,14 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 type Props = {
   data: ClassData;
-  profile: Profile;
+  character: Character;
   readOnly: boolean;
   onSaveMacro: (item: Macro) => void;
   onDeleteMacro: (id: string) => void;
   onRemoveSlot: (key: string) => void;
 };
 
-export function AbilityPanel({ data, profile, readOnly, onSaveMacro, onDeleteMacro, onRemoveSlot }: Props) {
+export function AbilityPanel({ data, character, readOnly, onSaveMacro, onDeleteMacro, onRemoveSlot }: Props) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSortState] = useState<Sort>(loadSort);
@@ -62,17 +62,17 @@ export function AbilityPanel({ data, profile, readOnly, onSaveMacro, onDeleteMac
   };
   const [editing, setEditing] = useState<Macro | null>(null);
 
-  const placed = useMemo(() => new Set(Object.values(profile.slots).map((s) => `${s.type}:${s.id}`)), [profile.slots]);
+  const placed = useMemo(() => new Set(Object.values(character.slots).map((s) => `${s.type}:${s.id}`)), [character.slots]);
 
-  const race = data.races.find((r) => r.id === profile.raceId);
+  const race = data.races.find((r) => r.id === character.raceId);
   const q = query.trim().toLowerCase();
   const matches = (name: string, extra = "") => !q || name.toLowerCase().includes(q) || extra.toLowerCase().includes(q);
 
   const sections = useMemo(() => {
     const visible = data.abilities.filter(
       (a) =>
-        (a.group !== "racial" || race?.racials.includes(a.id)) &&
-        (filter === "all" || filter === a.group) &&
+        availableToRace(a, character.raceId) &&
+        (filter === "all" || filter === a.group || (filter === "racial" && isRacial(a))) &&
         (!form || !!a.requires?.includes(form)) &&
         matches(a.name, a.tree),
     );
@@ -91,7 +91,7 @@ export function AbilityPanel({ data, profile, readOnly, onSaveMacro, onDeleteMac
     return out.filter((s) => s.abilities.length);
   }, [data, race, filter, q, sort, form]);
 
-  const macroList = profile.macros.filter((c) => !form && (filter === "all" || filter === "macro") && matches(c.name));
+  const macroList = character.macros.filter((c) => !form && (filter === "all" || filter === "macro") && matches(c.name));
 
   return (
     <aside
@@ -190,7 +190,7 @@ export function AbilityPanel({ data, profile, readOnly, onSaveMacro, onDeleteMac
               <MacroEditor
                 item={editing}
                 data={data}
-                isNew={!profile.macros.some((c) => c.id === editing.id)}
+                isNew={!character.macros.some((c) => c.id === editing.id)}
                 onSave={(item) => {
                   onSaveMacro(item);
                   setEditing(null);
@@ -229,6 +229,11 @@ function AbilityRow({ ability, placed, readOnly, showLevel }: { ability: Ability
       <span className="ability-name">{ability.name}</span>
       {ability.kind === "shapeshift" && <span className="badge">Form</span>}
       {ability.group === "talent" && <span className="badge talent">Talent</span>}
+      {ability.races && (
+        <span className="badge racial" title={`${ability.races.join(", ")} only`}>
+          Racial
+        </span>
+      )}
       {placed && <span className="placed" title="On your bars">✓</span>}
       {showLevel && ability.level !== undefined && (
         <span className="ability-level" title={`Learned at level ${ability.level}`}>
@@ -245,6 +250,8 @@ export function AbilityTooltip({ ability }: { ability: Ability }) {
       ? `${ability.tree} talent`
       : ability.group === "racial"
         ? `${ability.race} racial`
+        : ability.races
+          ? `${ability.tree} · ${ability.races.join(", ")} racial`
         : ability.group === "general"
           ? "General"
           : ability.tree;

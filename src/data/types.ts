@@ -15,6 +15,8 @@ export type Ability = {
   level?: number;
   lines: string[];
   desc: string;
+  /** Set on race-specific class spells (Priest racials): only these races get it. */
+  races?: string[];
   /** Forms, stances or weapons the ability needs, e.g. ["Cat Form", "Prowl"]. */
   requires?: string[];
   /** false when the class trainer doesn't sell the top rank. */

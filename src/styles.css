@@ -323,7 +323,7 @@ kbd {
   padding: 2px var(--s-2);
 }
 
-.profile-bar {
+.character-bar {
   display: flex;
   align-items: center;
   gap: var(--s-2);
@@ -401,6 +401,30 @@ main {
 .panel-head .segmented,
 .panel-head .legend {
   margin-left: auto;
+}
+
+/* Marks panels that edit the account-wide keymap. */
+.scope-tag {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  padding: 2px var(--s-2);
+  border-radius: 999px;
+  color: var(--game);
+  background: var(--game-soft);
+}
+
+.banner-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  cursor: pointer;
+}
+
+.banner-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--gold);
 }
 
 .hint {
@@ -608,6 +632,11 @@ main {
 .badge.talent {
   color: var(--gold);
   background: var(--gold-soft);
+}
+
+.badge.racial {
+  color: var(--game);
+  background: var(--game-soft);
 }
 
 .placed {

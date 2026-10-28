@@ -33,6 +33,9 @@ export function PresetsPanel({ bindings, readOnly, onTogglePreset }: PresetsProp
     <section className="presets panel">
       <div className="panel-head">
         <h2>Binding presets</h2>
+        <span className="scope-tag" title="Keybindings are account-wide: every character uses the same keymap, as in WoW.">
+          All characters
+        </span>
       </div>
       {BINDING_PRESETS.map((p) => {
         const on = isPresetActive(bindings, p);
@@ -97,6 +100,9 @@ export function BindingsList(props: Props) {
     <section className="binding-list panel">
       <div className="panel-head">
         <h2>All bindings</h2>
+        <span className="scope-tag" title="Keybindings are account-wide: every character uses the same keymap, as in WoW.">
+          All characters
+        </span>
         {!readOnly && (
           <span className="muted">
             {quickBind ? "Hover a row and press a key" : "Click Key 1 or Key 2, then press a key (Esc unbinds it)"}

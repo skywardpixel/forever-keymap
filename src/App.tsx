@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CLASS_COLORS, CLASS_ICONS, iconUrl, loadClass } from "./data/classes";
+import { availableToRace, CLASS_COLORS, CLASS_ICONS, iconUrl, loadClass } from "./data/classes";
 import meta from "./data/meta.json";
 import type { ClassData } from "./data/types";
-import { DEFAULT_BINDINGS } from "./domain/bindings";
-import { createProfile, newId, setRace, type Profile } from "./domain/profile";
-import { decodeProfile, shareCodeFromHash, shareUrl } from "./domain/share";
+import { DEFAULT_BINDINGS, type Bindings } from "./domain/bindings";
+import { createCharacter, newId, setRace, type Character } from "./domain/character";
+import { decodeShare, shareCodeFromHash, shareUrl } from "./domain/share";
 import { loadSaved, save, type Saved } from "./domain/storage";
 import { ClassPicker } from "./ui/ClassPicker";
 import { Editor } from "./ui/Editor";
@@ -55,7 +55,9 @@ function ConfirmButton({ label, confirm, onConfirm, className }: { label: string
 
 export default function App() {
   const [saved, setSaved] = useState<Saved>(loadSaved);
-  const [shared, setShared] = useState<Profile | null>(null);
+  const [shared, setShared] = useState<{ character: Character; keymap: Bindings } | null>(null);
+  /** On a shared link: also replace my keymap with theirs when copying. */
+  const [takeKeymap, setTakeKeymap] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [data, setData] = useState<ClassData | null>(null);
@@ -71,7 +73,7 @@ export default function App() {
 
   useEffect(() => save(saved), [saved]);
 
-  // Open share links (#share=...) as read-only profiles.
+  // Open share links (#share=...) read-only.
   useEffect(() => {
     const read = () => {
       const code = shareCodeFromHash(window.location.hash);
@@ -79,9 +81,10 @@ export default function App() {
         setShared(null);
         return;
       }
-      decodeProfile(code)
-        .then((p) => {
-          setShared({ ...p, id: "shared", updatedAt: Date.now() });
+      decodeShare(code)
+        .then(({ character, keymap }) => {
+          setShared({ character: { ...character, id: "shared", updatedAt: Date.now() }, keymap });
+          setTakeKeymap(false);
           setShareError(null);
         })
         .catch(() => setShareError("This share link is broken or from a newer version of the site."));
@@ -91,19 +94,20 @@ export default function App() {
     return () => window.removeEventListener("hashchange", read);
   }, []);
 
-  const active = saved.profiles.find((p) => p.id === saved.activeId) ?? saved.profiles[0] ?? null;
-  const shown = shared ?? active;
+  const active = saved.characters.find((p) => p.id === saved.activeId) ?? saved.characters[0] ?? null;
+  const shown = shared?.character ?? active;
+  const shownKeymap = shared?.keymap ?? saved.keymap;
 
   useEffect(() => {
     setData(null);
     if (shown) loadClass(shown.classId).then(setData);
   }, [shown?.classId]);
 
-  const updateProfile = (p: Profile) =>
-    setSaved((s) => ({ ...s, profiles: s.profiles.map((x) => (x.id === p.id ? p : x)) }));
+  const updateCharacter = (p: Character) =>
+    setSaved((s) => ({ ...s, characters: s.characters.map((x) => (x.id === p.id ? p : x)) }));
 
-  const addProfile = (p: Profile) => {
-    setSaved((s) => ({ profiles: [...s.profiles, p], activeId: p.id }));
+  const addCharacter = (p: Character) => {
+    setSaved((s) => ({ ...s, characters: [...s.characters, p], activeId: p.id }));
     setPicking(false);
   };
 
@@ -129,14 +133,14 @@ export default function App() {
             <Countdown />
           </div>
           {!shared && active && !picking && (
-            <div className="profile-bar">
+            <div className="character-bar">
               <img className="class-icon" src={iconUrl(CLASS_ICONS[active.classId])} alt={active.classId} />
               <select
-                aria-label="Profile"
+                aria-label="Character"
                 value={active.id}
                 onChange={(e) => setSaved((s) => ({ ...s, activeId: e.target.value }))}
               >
-                {saved.profiles.map((p) => (
+                {saved.characters.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -144,16 +148,20 @@ export default function App() {
               </select>
               <input
                 className="name-input"
-                aria-label="Profile name"
+                aria-label="Character name"
                 value={active.name}
-                onChange={(e) => updateProfile({ ...active, name: e.target.value })}
+                onChange={(e) => updateCharacter({ ...active, name: e.target.value })}
                 maxLength={40}
               />
               {data && (
                 <select
                   aria-label="Race"
                   value={active.raceId}
-                  onChange={(e) => updateProfile(setRace(active, e.target.value))}
+                  onChange={(e) => {
+                    const race = e.target.value;
+                    const byId = new Map(data.abilities.map((a) => [a.id, a]));
+                    updateCharacter(setRace(active, race, (id) => !byId.has(id) || availableToRace(byId.get(id)!, race)));
+                  }}
                 >
                   {data.races.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -163,13 +171,13 @@ export default function App() {
                 </select>
               )}
               <button onClick={() => setPicking(true)}>New</button>
-              <button onClick={() => addProfile({ ...structuredClone(active), id: newId(), name: `${active.name} (copy)` })}>
+              <button onClick={() => addCharacter({ ...structuredClone(active), id: newId(), name: `${active.name} (copy)` })}>
                 Duplicate
               </button>
               <button
                 className="primary"
                 onClick={async () => {
-                  const url = await shareUrl(active);
+                  const url = await shareUrl(active, saved.keymap);
                   try {
                     await navigator.clipboard.writeText(url);
                     toast("Share link copied to clipboard.");
@@ -182,21 +190,21 @@ export default function App() {
                 Share
               </button>
               <ConfirmButton
-                label="Reset bindings"
-                confirm="Reset all bindings?"
+                label="Reset keybindings"
+                confirm="Reset for all characters?"
                 onConfirm={() => {
-                  updateProfile({ ...active, bindings: structuredClone(DEFAULT_BINDINGS) });
-                  toast("Bindings reset to WoW defaults. Your bars are unchanged.");
+                  setSaved((s) => ({ ...s, keymap: structuredClone(DEFAULT_BINDINGS) }));
+                  toast("Keybindings reset to WoW defaults for all characters. Bars are unchanged.");
                 }}
               />
               <ConfirmButton
                 className="danger"
                 label="Delete"
-                confirm="Delete profile?"
+                confirm="Delete character?"
                 onConfirm={() =>
                   setSaved((s) => {
-                    const profiles = s.profiles.filter((p) => p.id !== active.id);
-                    return { profiles, activeId: profiles[0]?.id ?? null };
+                    const characters = s.characters.filter((p) => p.id !== active.id);
+                    return { ...s, characters, activeId: characters[0]?.id ?? null };
                   })
                 }
               />
@@ -212,17 +220,24 @@ export default function App() {
         {shared && (
           <div className="banner">
             <span>
-              Viewing shared profile <b>{shared.name}</b> ({shared.raceId} {shared.classId}). Read-only.
+              Viewing shared character <b>{shared.character.name}</b> ({shared.character.raceId} {shared.character.classId}) and
+              its keybindings. Read-only.
             </span>
+            <label className="banner-check">
+              <input type="checkbox" checked={takeKeymap} onChange={(e) => setTakeKeymap(e.target.checked)} />
+              Also use their keybindings (replaces yours for all characters)
+            </label>
             <button
               className="primary"
               onClick={() => {
-                addProfile({ ...shared, id: newId(), updatedAt: Date.now() });
+                const { character, keymap } = shared;
+                addCharacter({ ...character, id: newId(), updatedAt: Date.now() });
+                if (takeKeymap) setSaved((s) => ({ ...s, keymap }));
                 closeShared();
-                toast(`Copied “${shared.name}” to your profiles.`);
+                toast(`Copied “${character.name}”${takeKeymap ? " and its keybindings" : ""} to your characters.`);
               }}
             >
-              Copy to my profiles
+              Copy to my characters
             </button>
             <button onClick={closeShared}>Close</button>
           </div>
@@ -238,17 +253,19 @@ export default function App() {
               </div>
             ) : (
               <ClassPicker
-                onCreate={(c, r) => addProfile(createProfile(c, r))}
+                onCreate={(c, r) => addCharacter(createCharacter(c, r))}
                 onCancel={active ? () => setPicking(false) : undefined}
               />
             )
           ) : shown && data && data.id === shown.classId ? (
             <Editor
               key={shown.id}
-              profile={shown}
+              character={shown}
+              keymap={shownKeymap}
               data={data}
               readOnly={!!shared || narrow}
-              onChange={updateProfile}
+              onChange={updateCharacter}
+              onKeymapChange={(keymap) => setSaved((s) => ({ ...s, keymap }))}
               toast={toast}
             />
           ) : (

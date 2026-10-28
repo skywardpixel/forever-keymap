@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { mainBarPages } from "../domain/bars";
-import { bind, chordsOf, clearTarget, removeChord, resetTarget, setChordAt, type BindResult } from "../domain/bindings";
+import { bind, chordsOf, clearTarget, removeChord, resetTarget, setChordAt, type BindResult, type Bindings } from "../domain/bindings";
 import { EXTRA_MOUSE_BUTTONS, NO_MODS, isBindable, longChord, makeChord, modsFromEvent, type Chord, type Modifiers } from "../domain/chords";
 import { applyPreset, undoPreset } from "../domain/presets";
-import { clearSlot, deleteMacro, moveItem, placeItem, upsertMacro, type Profile } from "../domain/profile";
+import { clearSlot, deleteMacro, moveItem, placeItem, upsertMacro, type Character } from "../domain/character";
 import type { ClassData } from "../data/types";
 import { AbilityPanel } from "./AbilityPanel";
 import { ActionBars } from "./ActionBars";
@@ -13,15 +13,18 @@ import { makeCatalog, targetName } from "./model";
 import { useHeldModifiers, useQuickBind } from "./useQuickBind";
 
 type Props = {
-  profile: Profile;
+  character: Character;
+  /** The account-wide keymap, shared by every character. */
+  keymap: Bindings;
   data: ClassData;
   readOnly: boolean;
-  onChange: (profile: Profile) => void;
+  onChange: (character: Character) => void;
+  onKeymapChange: (keymap: Bindings) => void;
   toast: (message: string) => void;
 };
 
-export function Editor({ profile, data, readOnly, onChange, toast }: Props) {
-  const pages = mainBarPages(profile.classId);
+export function Editor({ character, keymap, data, readOnly, onChange, onKeymapChange, toast }: Props) {
+  const pages = mainBarPages(character.classId);
   const [page, setPage] = useState(pages[0].id);
   const [quickBind, setQuickBind] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -38,16 +41,17 @@ export function Editor({ profile, data, readOnly, onChange, toast }: Props) {
     if (!pages.some((p) => p.id === page)) setPage(pages[0].id);
   }, [pages, page]);
 
-  const catalog = useMemo(() => makeCatalog(data, profile), [data, profile]);
-  const bindings = profile.bindings;
+  const catalog = useMemo(() => makeCatalog(data, character), [data, character]);
+  const bindings = keymap;
+  const setKeymap = onKeymapChange;
   const target = hovered ?? locked;
 
-  const update = (next: Partial<Profile>) => onChange({ ...profile, ...next, updatedAt: Date.now() });
+  const update = (next: Partial<Character>) => onChange({ ...character, ...next, updatedAt: Date.now() });
 
   /** Applies a binding change and says what happened, flashing a target that lost its key. */
   const applyBind = (to: string, chord: Chord, result: BindResult) => {
     const before = chordsOf(bindings, to);
-    update({ bindings: result.bindings });
+    setKeymap(result.bindings);
     if (result.movedFrom && result.movedFrom !== to) {
       setFlash(result.movedFrom);
       window.clearTimeout(flashTimer.current);
@@ -59,7 +63,7 @@ export function Editor({ profile, data, readOnly, onChange, toast }: Props) {
   };
 
   const clearAll = (t: string) => {
-    update({ bindings: clearTarget(bindings, t) });
+    setKeymap(clearTarget(bindings, t));
     toast(`Cleared ${targetName(t)}.`);
   };
 
@@ -88,7 +92,7 @@ export function Editor({ profile, data, readOnly, onChange, toast }: Props) {
       if (!capture) return;
       const chord = chordsOf(bindings, capture.target)[capture.index];
       if (chord) {
-        update({ bindings: removeChord(bindings, capture.target, chord) });
+        setKeymap(removeChord(bindings, capture.target, chord));
         toast(`Unbound ${longChord(chord)} from ${targetName(capture.target)}.`);
       }
       setCapture(null);
@@ -104,7 +108,7 @@ export function Editor({ profile, data, readOnly, onChange, toast }: Props) {
   const highlight = keyHighlight ?? hovered;
 
   const barProps = {
-    profile,
+    character,
     catalog,
     bindings,
     readOnly,
@@ -120,11 +124,11 @@ export function Editor({ profile, data, readOnly, onChange, toast }: Props) {
     <div className={`editor ${quickBind ? "quickbind-on" : ""}`}>
       <AbilityPanel
         data={data}
-        profile={profile}
+        character={character}
         readOnly={readOnly}
-        onSaveMacro={(item) => update(upsertMacro(profile, item))}
-        onDeleteMacro={(id) => update(deleteMacro(profile, id))}
-        onRemoveSlot={(key) => update(clearSlot(profile, key))}
+        onSaveMacro={(item) => update(upsertMacro(character, item))}
+        onDeleteMacro={(id) => update(deleteMacro(character, id))}
+        onRemoveSlot={(key) => update(clearSlot(character, key))}
       />
       <div className="workspace">
         <ActionBars
@@ -133,10 +137,10 @@ export function Editor({ profile, data, readOnly, onChange, toast }: Props) {
           onPage={setPage}
           onDropItem={(key, d) => {
             if (!d || readOnly) return;
-            if (d.kind === "slot") update(moveItem(profile, d.key, key));
-            else update(placeItem(profile, key, { type: d.kind, id: d.id }));
+            if (d.kind === "slot") update(moveItem(character, d.key, key));
+            else update(placeItem(character, key, { type: d.kind, id: d.id }));
           }}
-          onRemove={(key) => update(clearSlot(profile, key))}
+          onRemove={(key) => update(clearSlot(character, key))}
           actions={
             !readOnly && (
               <button
@@ -176,7 +180,7 @@ export function Editor({ profile, data, readOnly, onChange, toast }: Props) {
           }
         />
         <KeyboardView
-          profile={profile}
+          character={character}
           catalog={catalog}
           bindings={bindings}
           page={page}
@@ -191,18 +195,18 @@ export function Editor({ profile, data, readOnly, onChange, toast }: Props) {
             bindings={bindings}
             readOnly={readOnly}
             onTogglePreset={(preset, on) => {
-              update({ bindings: on ? applyPreset(bindings, preset) : undoPreset(bindings, preset) });
+              setKeymap(on ? applyPreset(bindings, preset) : undoPreset(bindings, preset));
               toast(`${preset.name} ${on ? "applied" : "undone"}.`);
             }}
           />
           <BindingsList
             {...barProps}
-            onReset={(t) => update({ bindings: resetTarget(bindings, t) })}
+            onReset={(t) => setKeymap(resetTarget(bindings, t))}
             capture={capture}
             onCapture={(target, index) =>
               setCapture(capture?.target === target && capture.index === index ? null : { target, index })
             }
-            onRemoveChord={(t, chord) => update({ bindings: removeChord(bindings, t, chord) })}
+            onRemoveChord={(t, chord) => setKeymap(removeChord(bindings, t, chord))}
           />
         </div>
       </div>
